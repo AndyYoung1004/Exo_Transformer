@@ -1,0 +1,184 @@
+@startuml
+
+interface Player {}
+abstract class BasePlayer {}
+abstract class SimpleBasePlayer {}
+Player <|.. BasePlayer
+BasePlayer <|-- SimpleBasePlayer
+SimpleBasePlayer <|-- CompositionPlayer
+
+
+CompositionPlayer *-[#red]-> ExoPlayerImpl
+ExoPlayer <|.. ExoPlayerImpl
+
+BasePlayer <|-- ExoPlayerImpl
+
+ExoPlayerImpl *--> ExoPlayerImplInternal
+
+class CompositionPlayer {
+players : List<ExoPlayer>
+composition : Composition
+}
+
+interface ExoPlayer {
+renderersFactorySupplier : Supplier<RenderersFactory>
+}
+
+class ExoPlayerImpl {
+internalPlayer : ExoPlayerImplInternal
+renderers : Renderer[]
+}
+
+class ExoPlayerImplInternal {
+renderers : Renderer[]
+}
+
+ExoPlayerImplInternal *-[#red]-> SequenceVideoRenderer
+
+interface RenderersFactory {}
+
+class SequencePlayerRenderersWrapper {
+createRenderers : Renderer[]
+}
+
+RenderersFactory <|.. SequencePlayerRenderersWrapper
+
+SequencePlayerRenderersWrapper -- ExoPlayerImplInternal
+
+class SequenceVideoRenderer {
+
+}
+
+class MediaCodecVideoRenderer {
+videoSink : VideoSink
+}
+
+interface VideoSink {}
+class VideoSinkImpl {}
+VideoSink <|.. VideoSinkImpl
+
+MediaCodecVideoRenderer *-[#red]-> VideoSinkImpl
+VideoSinkImpl *-[#red]-> CompositingVideoSinkProvider
+
+MediaCodecVideoRenderer <|-- SequenceVideoRenderer
+
+class CompositingVideoSinkProvider {
+videoGraph : PreviewingVideoGraph
+videoFrameRenderControl : VideoFrameRenderControl
+}
+
+interface PreviewingVideoGraph {}
+PreviewingVideoGraph <|.. PreviewingSingleInputVideoGraph
+CompositingVideoSinkProvider *-[#red]-> PreviewingSingleInputVideoGraph
+CompositingVideoSinkProvider *-[#red]-> VideoFrameRenderControl
+
+class VideoFrameRenderControl {
+frameRenderer : FrameRenderer
+}
+
+class FrameRendererImpl {}
+VideoFrameRenderControl *-[#red]-> FrameRendererImpl
+FrameRendererImpl *-[#red]-> CompositingVideoSinkProvider
+
+
+class PreviewingSingleInputVideoGraph {
+renderOutputFrame() : void
+}
+
+abstract class SingleInputVideoGraph {
+videoFrameProcessor : VideoFrameProcessor
+}
+
+SingleInputVideoGraph <|-[#red]- PreviewingSingleInputVideoGraph
+SingleInputVideoGraph *-[#red]-> DefaultVideoFrameProcessor
+class VideoFrameRenderControl {
+
+}
+
+class FrameRendererImpl {
+
+}
+
+class videoFrameProcessor {
+
+}
+
+class DefaultVideoFrameProcessor {
+
+}
+
+videoFrameProcessor <|-- DefaultVideoFrameProcessor
+DefaultVideoFrameProcessor *-[#red]-> FinalShaderProgramWrapper
+FinalShaderProgramWrapper *-[#red]-> DefaultShaderProgram
+class FinalShaderProgramWrapper {
+defaultShaderProgram : DefaultShaderProgram
+outputEglSurface : EGLSurface
+}
+
+class DefaultShaderProgram {
+drawFrame() : void
+}
+
+
+class SurfaceView {
+surface : Surface
+}
+
+class EGLSurface {
+
+}
+
+SurfaceView -- EGLSurface
+FinalShaderProgramWrapper *-[#red]-> EGLSurface
+
+@enduml
+
+预览模式：
+
+ExoPlayer整个渲染再加后处理模块实现预览效果后处理
+
+ExoPlayerImplInternal#doSomeWork
+MediaCodecRenderer#render
+MediaCodecRenderer#drainOutputBuffer
+MediaCodecVideoRenderer#processOutputBuffer
+CompositingVideoSinkProvider#VideoSinkImpl#render
+CompositingVideoSinkProvider#render
+VideoFrameRenderControl#render
+VideoFrameRenderControl#renderFrame
+CompositingVideoSinkProvider$FrameRendererImpl#renderFrame
+PreviewingSingleInputVideoGraph#renderOutputFrame
+DefaultVideoFrameProcessor#renderOutputFrame
+FinalShaderProgramWrapper#renderOutputFrame
+FinalShaderProgramWrapper#renderFrame
+FinalShaderProgramWrapper#renderFrameToOutputSurface
+DefaultShaderProgram#drawFrame
+
+
+CompositionPreviewActivity
+CompositionPlayer
+ExoPlayer
+ExoPlayerImpl
+ExoPlayerImplInternal
+SequencePlayerRenderersWrapper
+SequenceVideoRenderer
+MediaCodecVideoRenderer
+CompositingVideoSinkProvider
+VideoFrameRenderControl
+FrameRendererImpl
+PreviewingSingleInputVideoGraph
+DefaultVideoFrameProcessor
+FinalShaderProgramWrapper
+DefaultShaderProgram
+
+
+CompositionPlayer 有多个 ExoPlayer 通过 playerBuilder.build() 创建的
+
+而 playerBuilder.build() 会创建 ExoPlayerImpl ，因此 CompositionPlayer 拥有
+ExoPlayerImpl 实例
+
+MediaCodecVideoRenderer在render的时候，会控制音视频同步
+这之后通过将frame送到DefaultVideoFrameProcessor做后处理再送出去
+outputSurfaceInfo.surface包含了外面送过来view的surface，用这个
+surface创建一个EGLSurface，opengl绘制到这个EGLSurface再通过s
+swapbuffer将数据送到surface上面显示
+
