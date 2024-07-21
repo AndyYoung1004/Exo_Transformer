@@ -1,0 +1,186 @@
+@startuml
+
+interface Renderer {
+getName():String
+getTrackType():String
+init():void
+getState():int
+enable():void
+start():void
+setPlaybackSpeed():void
+setTimeline():void
+render():void
+isReady():boolean
+stop():void
+disable():void
+release():void
+}
+abstract class BaseRenderer {
+}
+class ExoAssetLoaderBaseRenderer {
+sampleConsumer : SampleConsumer
+decoder : Codec
+inputFormat : Format
+outputFormat : Format
+decoderInputBuffer : DecoderInputBuffer
+render():void
+}
+class ExoAssetLoaderVideoRender {
+decoderFactory : Codec.DecoderFactory
+}
+Renderer <|.. BaseRenderer
+BaseRenderer <|-- ExoAssetLoaderBaseRenderer
+ExoAssetLoaderBaseRenderer <|-- ExoAssetLoaderVideoRender
+interface SampleConsumer {
+}
+class GraphInput {
+}
+SampleConsumer <|-- GraphInput
+class VideoFrameProcessingWrapper {
+videoFrameProcessor : VideoFrameProcessor
+}
+GraphInput <|-- VideoFrameProcessingWrapper
+
+interface VideoFrameProcessor {}
+
+class DefaultVideoFrameProcessor {
+glObjectsProvider : GlObjectsProvider
+inputSwitcher : InputSwitcher
+videoFrameProcessingTaskExecutor : VideoFrameProcessingTaskExecutor
+finalShaderProgramWrapper : FinalShaderProgramWrapper
+intermediateGlShaderPrograms : List<GlShaderProgram>
+}
+class InputSwitcher {
+glObjectsProvider : GlObjectsProvider
+videoFrameProcessingTaskExecutor : VideoFrameProcessingTaskExecutor
+activeTextureManager : TextureManager
+}
+class TextureManager {
+videoFrameProcessingTaskExecutor : VideoFrameProcessingTaskExecutor
+setSamplingGlShaderProgram() : void
+queueInputTexture() : void
+queueInputBitmap() : void
+getInputSurface() : Surface
+registerInputFrame() : void
+}
+class ExternalTextureManager {
+externalShaderProgram : ExternalTextureManager
+surface : Surface
+surfaceTexture : SurfaceTexture
+}
+
+class DefaultShaderProgram {
+drawFrame() : void
+}
+
+ExternalTextureManager *--> DefaultShaderProgram
+TextureManager <|-- ExternalTextureManager
+InputSwitcher *--> ExternalTextureManager
+DefaultVideoFrameProcessor *--> InputSwitcher
+VideoFrameProcessor <|.. DefaultVideoFrameProcessor
+VideoFrameProcessingWrapper *-[#red]-> DefaultVideoFrameProcessor
+ExoAssetLoaderBaseRenderer *-[#red]-> SampleConsumer
+
+
+@enduml
+1、播放器的解析器模块加载MediaSource并解析数据
+TransformerInternal 有多个SequenceAssetLoader，每个对应一个clip
+每个SequenceAssetLoader都有一个ExoPlayerAssetLoader
+每个ExoPlayerAssetLoader有一个ExoPlayer
+每个ExoPlayer有一个DefaultMediaSourceFactory
+每个DefaultMediaSourceFactory有一个ProgressiveMediaSource
+每个ProgressiveMediaSource有一个DefaultExtractorsFactory实例
+因此每个SequenceAssetLoader都有一个播放器的source和extractor用来做解析使用的
+重点要搞清楚，解析后的数据怎么送给对应解码器做下一步动作的
+
+Transformer.start
+->Transformer.startInternal
+–>new TransformerInternal //创建DefaultExtractorsFactory
+–>transformerInternal.start() //创建MediaSource
+第一步：先创建Factory
+Transformer里面对应每个SequenceAssetLoader都会有一个ExoPlayerAssetLoader并对应一个DefaultExtractorsFactory和DefaultMediaSourceFactory
+->Transformer.startInternal
+–>TransformerInternal constructor
+—>new SequenceAssetLoader
+---->assetLoaderFactory.createAssetLoader
+----->DefaultAssetLoaderFactory.createAssetLoader(DefaultAssetLoaderFactory.java:149)
+------>ExoPlayerAssetLoader$Factory.createAssetLoader
+------->new DefaultExtractorsFactory()
+------->new DefaultMediaSourceFactory(context, defaultExtractorsFactory)
+------->new ExoPlayerAssetLoader（）
+
+第二步：创建source和extractor
+创建MediaSource并初始化解析器的过程
+TransformerInternal.startInternal(TransformerInternal.java:361)
+->SequenceAssetLoader.start(SequenceAssetLoader.java:143)
+–>ExoPlayerAssetLoader.start(ExoPlayerAssetLoader.java:207)
+—>BasePlayer.setMediaItem(BasePlayer.java:41)
+---->ExoPlayerImpl.setMediaItems(ExoPlayerImpl.java:596)
+----->ExoPlayerImpl.createMediaSources(ExoPlayerImpl.java:1971)
+------>DefaultMediaSourceFactory.createMediaSource(DefaultMediaSourceFactory.java:479)
+------->DelegateFactoryLoader.getMediaSourceFactory(DefaultMediaSourceFactory.java:642)
+-------->DefaultMediaSourceFactoryD e l e g a t e F a c t o r y L o a d e r ( D e f a u l t M e d i a S o u r c e F a c t o r y . j a v a : 769 ) − − − − − − − − − > P r o g r e s s i v e M e d i a S o u r c e DelegateFactoryLoader(DefaultMediaSourceFactory.java:769) --------->ProgressiveMediaSourceDelegateFactoryLoader(DefaultMediaSourceFactory.java:769)−−−−−−−−−>ProgressiveMediaSourceFactory.(ProgressiveMediaSource.java:103)
+---------->new BundledExtractorsAdapter(extractorsFactory)
+
+第三步：加载souce，创建并初始化extractor
+LoadTask.run()
+–>ExtractingLoadable.load
+---->BundledExtractorsAdapter.init
+------>DefaultExtractorsFactory.createExtractors()
+------>extractor.sniff(extractorInput) //匹配最佳extractor
+------>extractor.init(output)
+第四步：读取数据
+LoadTask.run(Loader.java:421)
+–>ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1082)
+---->BundledExtractorsAdapter.read(BundledExtractorsAdapter.java:147)
+------>Mp4Extractor.read(Mp4Extractor.java:359)
+
+2、数据解码流程
+TransformerInternal 有一个 SequenceAssetLoader 会去创建 createAssetLoader
+包括了 ExoAssetLoaderVideoRenderer 和 ExoAssetLoaderAudioRenderer，他们都是 ExoAssetLoaderBaseRenderer
+的派生类，因此通过render调用函数，在transformer#start之后，会持续去读取数据并render将数据送出去
+ExoAssetLoaderBaseRenderer#render
+-readInputFormatAndInitDecoderIfNeeded() //初始化
+-feedConsumerFromDecoder() //解码器输出数据
+-feedDecoderFromInput() //读取数据并送数据给解码器
+
+读取并将数据送给解码器的过程：
+ExoAssetLoaderBaseRenderer.java
+render()
+->feedDecoderFromInput()
+–>decoder.maybeDequeueInputBuffer
+–>readInput(decoderInputBuffer)
+–>shouldDropInputBuffer
+–>onDecoderInputReady(decoderInputBuffer)
+–>decoder.queueInputBuffer
+
+解码器输出数据的过程：
+ExoAssetLoaderBaseRenderer.java
+render()
+->ExoAssetLoaderVideoRenderer.feedConsumerFromDecoder
+–>DefaultCodec.releaseOutputBuffer(true) -> ExternalTextureManager constructor
+–>surfaceTexture.setOnFrameAvailableListener -> videoFrameProcessingTaskExecutor.submit
+
+releaseOutputBuffer的时候会同时回调给SurfaceTexture通知一帧已经ok，可以做后续的纹理处理了。通过maybeQueueFrameToExternalShaderProgram做特效，做完之后再通知编码器去编码。
+
+
+3、数据后处理流程
+通过 availableFrameCount来控制这个死循环，直到缓存的帧没有为止，这个生产者是解码器的输出，消费者是这个死循环做特效处理
+
+保存模式的解码器和编码器是哪边？
+
+BaseGlShaderProgram.queueInputFrame(BaseGlShaderProgram.java:156) 分2路，另外一路继续循环
+-----------------------
+DefaultShaderProgram.drawFrame(DefaultShaderProgram.java:522) 一路直接drawFrame做特效处理
+-----------------------
+InputSwitcher$GatedChainingListenerWrapper.onOutputFrameAvailable(InputSwitcher.java:347)
+ChainingGlShaderProgramListener.onOutputFrameAvailable(ChainingGlShaderProgramListener.java:82)
+FrameConsumptionManager.queueInputFrame
+FinalShaderProgramWrapper.queueInputFrame(FinalShaderProgramWrapper.java:209)
+FinalShaderProgramWrapper.renderFrame(FinalShaderProgramWrapper.java:384)
+GatedChainingListenerWrapper.onInputFrameProcessed(InputSwitcher.java:332)
+ChainingGlShaderProgramListener.onInputFrameProcessed
+BaseGlShaderProgram.releaseOutputFrame(BaseGlShaderProgram.java:176)
+ExternalTextureManager.onReadyToAcceptInputFrame(ExternalTextureManager.java:212)
+ExternalTextureManager.maybeQueueFrameToExternalShaderProgram(ExternalTextureManager.java:408)
+BaseGlShaderProgram.queueInputFrame(BaseGlShaderProgram.java:156)
