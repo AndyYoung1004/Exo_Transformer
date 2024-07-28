@@ -1,0 +1,47 @@
+@startuml
+
+VideoGraph <|-- TransformerVideoGraph
+VideoGraph <|-- PreviewingVideoGraph
+TransformerVideoGraph <|.. TransformerMultipleInputVideoGraph
+TransformerVideoGraph <|.. TransformerSingleInputVideoGraph
+TransformerVideoGraph <|.. VideoGraphWrapper
+
+interface VideoGraph {}
+
+interface TransformerVideoGraph {}
+
+interface PreviewingVideoGraph {}
+
+class TransformerMultipleInputVideoGraph {}
+class TransformerSingleInputVideoGraph
+class VideoGraphWrapper {}
+class PreviewingSingleInputVideoGraph {}
+
+class SingleInputVideoGraph {
+videoFrameProcessor : VideoFrameProcessor
+}
+class VideoFrameProcessor {
+}
+VideoFrameProcessor <|-- DefaultVideoFrameProcessor
+SingleInputVideoGraph *-[#red]-> DefaultVideoFrameProcessor
+
+PreviewingVideoGraph <|.. PreviewingSingleInputVideoGraph
+SingleInputVideoGraph <|-[#red]- PreviewingSingleInputVideoGraph
+PreviewingSingleInputVideoGraph *-[#red]-> DefaultVideoFrameProcessor
+
+class DefaultVideoFrameProcessor {
+finalShaderProgramWrapper : FinalShaderProgramWrapper
+}
+class FinalShaderProgramWrapper {
+defaultShaderProgram : DefaultShaderProgram
+outputSurfaceInfo : SurfaceInfo
+outputEglSurface : EGLSurface
+renderOutputFrame() : void
+}
+DefaultVideoFrameProcessor *-[#red]-> FinalShaderProgramWrapper
+
+@enduml
+
+所有的沟通的脐带是 VideoGraph
+这个来源是 CompositionPlayer有一个previewingVideoGraphFactory，用于创建PreviewingSingleInputVideoGraph
+这里面又有 DefaultVideoFrameProcessor 和 FinalShaderProgramWrapper 和 defaultShaderProgram 用于后处理绘制
