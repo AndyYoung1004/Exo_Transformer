@@ -1,0 +1,99 @@
+@startuml
+participant User
+
+User -> MediaCodecVideoRenderer : doSomeWork
+
+activate MediaCodecVideoRenderer
+
+MediaCodecVideoRenderer -> VideoSinkImpl : render
+activate VideoSinkImpl
+
+VideoSinkImpl -> CompositingVideoSinkProvider : render
+activate CompositingVideoSinkProvider
+
+CompositingVideoSinkProvider -> VideoFrameRenderControl : render
+activate VideoFrameRenderControl
+
+VideoFrameRenderControl -> VideoFrameRenderControl : renderFrame
+
+VideoFrameRenderControl -> FrameRendererImpl : renderFrame
+activate FrameRendererImpl
+
+FrameRendererImpl -> PreviewingSingleInputVideoGraph : renderOutputFrame
+activate PreviewingSingleInputVideoGraph
+
+PreviewingSingleInputVideoGraph -> DefaultFrameProcessor : renderOutputFrame
+activate DefaultFrameProcessor
+
+DefaultFrameProcessor -> FinalShaderProgramWrapper : renderOutputFrame
+activate FinalShaderProgramWrapper
+
+FinalShaderProgramWrapper -> FinalShaderProgramWrapper : renderFrame
+FinalShaderProgramWrapper -> FinalShaderProgramWrapper : renderFrameToOutputSurface
+FinalShaderProgramWrapper -> DefaultShaderProgram : drawFrame
+activate DefaultShaderProgram
+
+DefaultShaderProgram --> FinalShaderProgramWrapper : Done
+deactivate DefaultShaderProgram
+
+FinalShaderProgramWrapper --> DefaultFrameProcessor : Done
+deactivate FinalShaderProgramWrapper
+
+DefaultFrameProcessor --> PreviewingSingleInputVideoGraph : Done
+deactivate DefaultFrameProcessor
+
+PreviewingSingleInputVideoGraph --> FrameRendererImpl : Done
+deactivate PreviewingSingleInputVideoGraph
+
+FrameRendererImpl --> VideoFrameRenderControl : Done
+deactivate FrameRendererImpl
+
+VideoFrameRenderControl --> CompositingVideoSinkProvider : Done
+deactivate VideoFrameRenderControl
+
+CompositingVideoSinkProvider --> VideoSinkImpl : Done
+deactivate CompositingVideoSinkProvider
+
+VideoSinkImpl --> MediaCodecVideoRenderer : Done
+deactivate VideoSinkImpl
+
+MediaCodecVideoRenderer --> User : Done
+deactivate MediaCodecVideoRenderer
+
+@enduml
+
+
+预览的时候，直接用的exoplayer去做的预览，后面接一个特效模块，这个特效模块是复用的，最后送到surface上面去
+
+CompositionPreviewActivity 中看一下解析、解码和render模块
+
+
+CompositionPlayer 会创建一堆 ExoPlayer
+ExoPlayer player = playerBuilder.build(); // 会创建一个 ExoPlayerImpl
+setPlayerSequence(player, editedMediaItemSequence, /* shouldGenerateSilence= */ i == 0);
+这里面会去 player.setMediaSource(mediaSourceBuilder.build());
+
+因此 CompositionPlayer 创建的 player 其实是 ExoPlayerImpl ，我们看下 ExoPlayerImpl 如何实现预览的 ？
+而实际干活的又是 ExoPlayerImplInternal 里面通过doSomeWork 一直在render ，我们看下如何 render
+
+
+最后走到 VideoGraph 的时候，这个时候就到后处理模块了，这个 VideoGraph 是VideoSink 和后处理模块的脐带
+此处应该单独开一个puml专门描述这个 VideoGraph
+
+这个来源是 CompositionPlayer有一个previewingVideoGraphFactory，用于创建PreviewingSingleInputVideoGraph
+
+
+
+代码调用流程：
+MediaCodecVideoRenderer#render
+VideoSinkImpl#render
+CompositingVideoSinkProvider#render
+VideoFrameRenderControl#render
+VideoFrameRenderControl#renderFrame
+FrameRendererImpl#renderFrame
+PreviewingSingleInputVideoGraph#renderOutputFrame
+DefaultFrameProcessor#renderOutputFrame
+FinalShaderProgramWrapper#renderOutputFrame
+FinalShaderProgramWrapper#renderFrame
+FinalShaderProgramWrapper#renderFrameToOutputSurface
+DefaultShaderProgram#drawFrame

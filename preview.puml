@@ -1,5 +1,7 @@
 @startuml
 
+
+
 class CompositionPlayer {
 players : List<ExoPlayer>
 composition : Composition
@@ -81,6 +83,9 @@ VideoSink <|.. VideoSinkImpl
 MediaCodecVideoRender *-[#red]-> VideoSinkImpl
 VideoSinkImpl *-[#red]-> CompositingVideoSinkProvider
 
+
+
+
 @enduml
 
 预览的时候，直接用的exoplayer去做的预览，后面接一个特效模块，这个特效模块是复用的，最后送到surface上面去
@@ -117,3 +122,4 @@ FinalShaderProgramWrapper#renderOutputFrame
 FinalShaderProgramWrapper#renderFrame
 FinalShaderProgramWrapper#renderFrameToOutputSurface
 DefaultShaderProgram#drawFrame
+
