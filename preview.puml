@@ -37,6 +37,10 @@ renderers : Renderer[]
 
 ExoPlayerImpl *-[#red]-> ExoPlayerImplInternal
 
+interface Renderer {}
+
+abstract class BaseRenderer {}
+
 abstract class MediaCodecRenderer {}
 
 class MediaCodecVideoRender {
@@ -47,7 +51,8 @@ render() : void
 class SequenceVideoRenderer {
 
 }
-
+Renderer <|.. BaseRenderer
+BaseRenderer <|-- MediaCodecRenderer
 MediaCodecRenderer <|-- MediaCodecVideoRender
 MediaCodecVideoRender <|-[#red]- SequenceVideoRenderer
 

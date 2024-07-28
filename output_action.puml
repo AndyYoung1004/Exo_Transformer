@@ -1,0 +1,24 @@
+@startuml
+'https://plantuml.com/sequence-diagram
+
+participant User
+
+User -> ExoAssetLoaderVideoRenderer : feedConsumerFromDecoder
+activate ExoAssetLoaderVideoRenderer
+
+ExoAssetLoaderVideoRenderer -> VideoFrameProcessingWrapper : registerVideoFrame
+activate VideoFrameProcessingWrapper
+
+VideoFrameProcessingWrapper -> DefaultVideoFrameProcessor : registerInputFrame
+activate DefaultVideoFrameProcessor
+
+DefaultVideoFrameProcessor -> InputSwitcher : registerInputFrame
+activate InputSwitcher
+
+InputSwitcher -> ExternalTextureManager : registerInputFrame
+ExternalTextureManager -> ExternalTextureManager : pendingFrames.add
+
+ExoAssetLoaderVideoRenderer -> Codec : releaseOutputBuffer
+activate Codec
+
+@enduml

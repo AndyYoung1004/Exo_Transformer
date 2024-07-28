@@ -76,13 +76,20 @@ class DefaultShaderProgram {
 drawFrame() : void
 }
 
-ExternalTextureManager *--> DefaultShaderProgram
+ExternalTextureManager *-[#blue]-> DefaultShaderProgram : 保存4
 TextureManager <|-- ExternalTextureManager
-InputSwitcher *--> ExternalTextureManager
-DefaultVideoFrameProcessor *--> InputSwitcher
+InputSwitcher *-[#blue]-> ExternalTextureManager : 保存3
+DefaultVideoFrameProcessor *-[#blue]-> InputSwitcher : 保存2
 VideoFrameProcessor <|.. DefaultVideoFrameProcessor
-VideoFrameProcessingWrapper *-[#red]-> DefaultVideoFrameProcessor
+VideoFrameProcessingWrapper *-[#blue]-> DefaultVideoFrameProcessor : 保存1
 
+interface SampleConsumer {
+}
+class GraphInput {
+}
+SampleConsumer <|-- GraphInput
+GraphInput <|-- VideoFrameProcessingWrapper
+ExoAssetLoaderBaseRenderer *-[#blue]-> SampleConsumer : 保存0
 
 @enduml
 

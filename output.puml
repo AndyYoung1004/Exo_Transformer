@@ -81,8 +81,8 @@ VideoFrameProcessor <|.. DefaultVideoFrameProcessor
 VideoFrameProcessingWrapper *-[#red]-> DefaultVideoFrameProcessor
 ExoAssetLoaderBaseRenderer *-[#red]-> SampleConsumer
 
-
 @enduml
+
 1、播放器的解析器模块加载MediaSource并解析数据
 TransformerInternal 有多个SequenceAssetLoader，每个对应一个clip
 每个SequenceAssetLoader都有一个ExoPlayerAssetLoader
@@ -119,7 +119,7 @@ TransformerInternal.startInternal(TransformerInternal.java:361)
 ----->ExoPlayerImpl.createMediaSources(ExoPlayerImpl.java:1971)
 ------>DefaultMediaSourceFactory.createMediaSource(DefaultMediaSourceFactory.java:479)
 ------->DelegateFactoryLoader.getMediaSourceFactory(DefaultMediaSourceFactory.java:642)
--------->DefaultMediaSourceFactoryD e l e g a t e F a c t o r y L o a d e r ( D e f a u l t M e d i a S o u r c e F a c t o r y . j a v a : 769 ) − − − − − − − − − > P r o g r e s s i v e M e d i a S o u r c e DelegateFactoryLoader(DefaultMediaSourceFactory.java:769) --------->ProgressiveMediaSourceDelegateFactoryLoader(DefaultMediaSourceFactory.java:769)−−−−−−−−−>ProgressiveMediaSourceFactory.(ProgressiveMediaSource.java:103)
+-------->DefaultMediaSourceFactory DelegateFactoryLoader (DefaultMediaSourceFactory.java: 769 ) −−− > ProgressiveMediaSource DelegateFactoryLoader(DefaultMediaSourceFactory.java:769) --->ProgressiveMediaSourceDelegateFactoryLoader(DefaultMediaSourceFactory.java:769)−−−−−−−−−>ProgressiveMediaSourceFactory.(ProgressiveMediaSource.java:103)
 ---------->new BundledExtractorsAdapter(extractorsFactory)
 
 第三步：加载souce，创建并初始化extractor
@@ -129,6 +129,7 @@ LoadTask.run()
 ------>DefaultExtractorsFactory.createExtractors()
 ------>extractor.sniff(extractorInput) //匹配最佳extractor
 ------>extractor.init(output)
+
 第四步：读取数据
 LoadTask.run(Loader.java:421)
 –>ProgressiveMediaPeriod$ExtractingLoadable.load(ProgressiveMediaPeriod.java:1082)
@@ -158,16 +159,17 @@ render()
 ExoAssetLoaderBaseRenderer.java
 render()
 ->ExoAssetLoaderVideoRenderer.feedConsumerFromDecoder
-–>DefaultCodec.releaseOutputBuffer(true) -> ExternalTextureManager constructor
+  sampleConsumer.registerVideoFrame // 注册一帧到 sampleConsumer 后面要maybeQueue的时候获取出来处理
+  DefaultCodec.releaseOutputBuffer(true) -> ExternalTextureManager constructor
 –>surfaceTexture.setOnFrameAvailableListener -> videoFrameProcessingTaskExecutor.submit
 
-releaseOutputBuffer的时候会同时回调给SurfaceTexture通知一帧已经ok，可以做后续的纹理处理了。通过maybeQueueFrameToExternalShaderProgram做特效，做完之后再通知编码器去编码。
+releaseOutputBuffer的时候会同时回调给SurfaceTexture通知frameAvailable，可以做后续的纹理处理了。
+通过maybeQueueFrameToExternalShaderProgram做特效，做完之后再通知编码器去编码。
 
 
 3、数据后处理流程
 通过 availableFrameCount来控制这个死循环，直到缓存的帧没有为止，这个生产者是解码器的输出，消费者是这个死循环做特效处理
 
-保存模式的解码器和编码器是哪边？
 
 BaseGlShaderProgram.queueInputFrame(BaseGlShaderProgram.java:156) 分2路，另外一路继续循环
 -----------------------
