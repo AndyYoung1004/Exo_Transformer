@@ -6,6 +6,14 @@ TransformerVideoGraph <|.. TransformerMultipleInputVideoGraph
 TransformerVideoGraph <|.. TransformerSingleInputVideoGraph
 TransformerVideoGraph <|.. VideoGraphWrapper
 
+class CompositingVideoSinkProvider {
+videoFrameRenderControl : VideoFrameRenderControl
+videoGraph : PreviewingVideoGraph
+}
+
+CompositingVideoSinkProvider -[#red]- VideoGraph : 预览0
+CompositingVideoSinkProvider *-[#red]-> PreviewingSingleInputVideoGraph : 实际预览0
+
 interface VideoGraph {}
 
 interface TransformerVideoGraph {}
@@ -17,20 +25,24 @@ class TransformerSingleInputVideoGraph
 class VideoGraphWrapper {}
 class PreviewingSingleInputVideoGraph {}
 
-class SingleInputVideoGraph {
+interface SingleInputVideoGraph {
 videoFrameProcessor : VideoFrameProcessor
 }
 class VideoFrameProcessor {
 }
-VideoFrameProcessor <|-- DefaultVideoFrameProcessor
-SingleInputVideoGraph *-[#red]-> DefaultVideoFrameProcessor
+
+SingleInputVideoGraph *-[#red]-> DefaultVideoFrameProcessor : 预览2
 
 PreviewingVideoGraph <|.. PreviewingSingleInputVideoGraph
-SingleInputVideoGraph <|-[#red]- PreviewingSingleInputVideoGraph
-PreviewingSingleInputVideoGraph *-[#red]-> DefaultVideoFrameProcessor
+SingleInputVideoGraph <|-[#red]- PreviewingSingleInputVideoGraph : 预览1
+
 
 class DefaultVideoFrameProcessor {
+glObjectsProvider : GlObjectsProvider
+inputSwitcher : InputSwitcher
+videoFrameProcessingTaskExecutor : VideoFrameProcessingTaskExecutor
 finalShaderProgramWrapper : FinalShaderProgramWrapper
+intermediateGlShaderPrograms : List<GlShaderProgram>
 }
 class FinalShaderProgramWrapper {
 defaultShaderProgram : DefaultShaderProgram
@@ -38,7 +50,39 @@ outputSurfaceInfo : SurfaceInfo
 outputEglSurface : EGLSurface
 renderOutputFrame() : void
 }
-DefaultVideoFrameProcessor *-[#red]-> FinalShaderProgramWrapper
+DefaultVideoFrameProcessor *-[#red]-> FinalShaderProgramWrapper : 预览3
+FinalShaderProgramWrapper *-[#red]-> DefaultShaderProgram  : 预览4
+
+class InputSwitcher {
+glObjectsProvider : GlObjectsProvider
+videoFrameProcessingTaskExecutor : VideoFrameProcessingTaskExecutor
+activeTextureManager : TextureManager
+}
+class TextureManager {
+videoFrameProcessingTaskExecutor : VideoFrameProcessingTaskExecutor
+setSamplingGlShaderProgram() : void
+queueInputTexture() : void
+queueInputBitmap() : void
+getInputSurface() : Surface
+registerInputFrame() : void
+}
+class ExternalTextureManager {
+externalShaderProgram : ExternalTextureManager
+surface : Surface
+surfaceTexture : SurfaceTexture
+}
+
+class DefaultShaderProgram {
+drawFrame() : void
+}
+
+ExternalTextureManager *--> DefaultShaderProgram
+TextureManager <|-- ExternalTextureManager
+InputSwitcher *--> ExternalTextureManager
+DefaultVideoFrameProcessor *--> InputSwitcher
+VideoFrameProcessor <|.. DefaultVideoFrameProcessor
+VideoFrameProcessingWrapper *-[#red]-> DefaultVideoFrameProcessor
+
 
 @enduml
 
